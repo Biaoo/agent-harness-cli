@@ -10,6 +10,19 @@ Install:
 uv tool install agent-harness-cli
 ```
 
+Install the Codex skill that teaches agents how to design harness checks and
+Stop hooks:
+
+```bash
+npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex
+```
+
+For a global Codex install instead of a project-local install, add `-g`:
+
+```bash
+npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex -g
+```
+
 The core shape is:
 
 ```text
@@ -121,6 +134,7 @@ Failed checks should include specific reasons with evidence and a suggested fix.
 - Error-level failures block the run.
 - Domain logic belongs in user-owned check scripts.
 - Use `skills/harness-check-designer/SKILL.md` when asking an agent to design a new check.
+- A Codex Stop hook should translate blocking harness failures into a Codex continuation decision.
 - JSON is used for task and report files to avoid parser dependencies.
 
 ## Publishing

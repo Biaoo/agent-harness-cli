@@ -87,6 +87,65 @@ Required fields: `check`, `passed`, `severity`, `summary`, `reasons`.
 - Do not hide failures in logs; make them structured reasons.
 - Do not inspect unrelated files unless the check spec says so.
 
+## Codex Stop Hooks
+
+When wiring `agent-harness run-checks` into a Codex `Stop` hook, translate the
+harness result into Codex hook semantics:
+
+- Keep `agent-harness run-checks` exit code semantics unchanged: `0` means no
+  blocking failures; `1` means at least one blocking check failed.
+- A failed harness run is usually not a hook crash. Capture the status, read the
+  report, and emit a Codex continuation decision.
+- For blocking failures, print JSON with `decision: "block"` and an actionable
+  `reason`. Codex treats this as "continue the turn with this reason".
+- For success, exit `0` with no output.
+- Do not rely on `additionalContext` for blocking failures; it informs Codex but
+  does not force another pass.
+- Keep the continuation reason short: report path, paginated view command, failed
+  check names, summaries, and suggestions.
+- Resolve the hook script from the git root in `.codex/hooks.json`; Codex can be
+  started from a subdirectory.
+- If any check calls local `codex exec`, add a recursion guard such as
+  `AGENT_HARNESS_HOOK_ACTIVE=1`.
+
+Minimal Stop hook pattern:
+
+```bash
+set +e
+agent-harness run-checks --task task.json --report-id latest > reports/latest.summary.txt 2>&1
+status=$?
+set -e
+
+if [ "$status" -eq 0 ]; then
+  exit 0
+fi
+
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+report = json.loads(Path("reports/latest.json").read_text(encoding="utf-8"))
+failed = [c for c in report["checks"] if not c.get("passed")]
+lines = []
+for check in failed:
+    lines.append(f"- {check['check']}: {check['summary']}")
+    for reason in check.get("reasons", [])[:2]:
+        if reason.get("suggestion"):
+            lines.append(f"  Suggestion: {reason['suggestion']}")
+
+print(json.dumps({
+    "decision": "block",
+    "reason": "\n".join([
+        "Agent harness found blocking failures. Update the artifact and rerun the harness.",
+        "Report: reports/latest.json",
+        "View failed checks: agent-harness view latest --failed-only --page-size 5",
+        "",
+        "\n".join(lines),
+    ]),
+}, ensure_ascii=False))
+PY
+```
+
 ## LLM Judge Checks
 
 Use an LLM judge only after deterministic checks. Prefer checklist-based LLM
