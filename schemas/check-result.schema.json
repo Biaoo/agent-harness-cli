@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Harness CLI Check Result",
+  "type": "object",
+  "required": ["check", "passed", "severity", "summary", "reasons"],
+  "properties": {
+    "check": { "type": "string" },
+    "passed": { "type": "boolean" },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+    "summary": { "type": "string" },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["message", "requires_user_input"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "message": { "type": "string" },
+          "suggestion": { "type": "string" },
+          "requires_user_input": { "type": "boolean" },
+          "evidence": { "type": "object" }
+        }
+      }
+    },
+    "metadata": { "type": "object" }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Harness CLI Report",
+  "type": "object",
+  "required": ["report_id", "task_id", "passed", "summary", "checks", "next_actions"],
+  "properties": {
+    "report_id": { "type": "string" },
+    "task_id": { "type": "string" },
+    "task_path": { "type": "string" },
+    "created_at": { "type": "string" },
+    "passed": { "type": "boolean" },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_checks": { "type": "integer" },
+        "failed_checks": { "type": "integer" },
+        "blocking_failures": { "type": "integer" },
+        "warning_failures": { "type": "integer" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": { "$ref": "check-result.schema.json" }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

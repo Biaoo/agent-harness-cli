@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent Harness CLI Task",
+  "type": "object",
+  "required": ["id", "description", "artifacts", "checks"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "type": "string" },
+    "description": { "type": "string" },
+    "workspace": { "type": "string" },
+    "trace": { "type": "string" },
+    "budgets": { "type": "object" },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "type": { "type": "string" },
+          "required": { "type": "boolean" },
+          "min_bytes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "command"],
+        "properties": {
+          "name": { "type": "string" },
+          "command": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+          "config": { "type": "object" }
+        }
+      }
+    }
+  }
+}

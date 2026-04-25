@@ -1,0 +1,168 @@
+---
+name: harness-check-designer
+description: Use when designing or implementing Agent Harness CLI check scripts, turning ambiguous agentic task quality criteria into deterministic, single-purpose checks that output the Agent Harness CLI check-result JSON contract.
+---
+
+# Harness Check Designer
+
+Use this skill to design checks for `agent-harness`. The harness only runs check
+commands and stores reports; each check script owns its domain logic.
+
+## Workflow
+
+1. Convert the user's quality requirement into one narrow check.
+2. Prefer deterministic checks: schema, parser, filesystem, trace, AST, grep, or golden comparison.
+3. Use an LLM judge only when code cannot reasonably decide the requirement.
+4. Define the check before writing code:
+
+```md
+name:
+purpose:
+input:
+non_goals:
+pass_rule:
+fail_rule:
+severity:
+reason_fields:
+edge_cases:
+example_pass:
+example_fail:
+command:
+```
+
+5. Implement the check as a standalone command. It must accept `--input <path>`
+and print exactly one JSON object to stdout. Send logs to stderr.
+6. The check should be read-only by default. If it needs temporary files, write
+outside the user's artifacts or to a temp directory.
+7. Add at least one passing and one failing fixture when the check is non-trivial.
+
+## Input Contract
+
+The harness passes a JSON object with:
+
+```json
+{
+  "root": "project root provided by harness",
+  "task_path": "task.json",
+  "task": {},
+  "check": {}
+}
+```
+
+Resolve relative artifact, trace, and fixture paths against `root`.
+
+## Output Contract
+
+Each check must return:
+
+```json
+{
+  "check": "todo_markers",
+  "passed": false,
+  "severity": "warning",
+  "summary": "Found 2 unresolved marker occurrence(s).",
+  "score": 0.0,
+  "reasons": [
+    {
+      "file": "03_drafts/proposal.md",
+      "line": 42,
+      "message": "Found unresolved marker: TODO",
+      "suggestion": "Resolve the marker or move it into an explicit review note.",
+      "requires_user_input": false,
+      "evidence": { "line_excerpt": "TODO: add budget source" }
+    }
+  ]
+}
+```
+
+Required fields: `check`, `passed`, `severity`, `summary`, `reasons`.
+
+## Check Design Rules
+
+- One check, one concern.
+- Reasons must say where the issue is, why it failed, and how to fix it.
+- Use `error` only for issues that should block handoff.
+- Use `warning` for issues an agent can surface without blocking.
+- If the fix needs human judgment, set `requires_user_input: true`.
+- Do not hide failures in logs; make them structured reasons.
+- Do not inspect unrelated files unless the check spec says so.
+
+## LLM Judge Checks
+
+Use an LLM judge only after deterministic checks. Prefer checklist-based LLM
+checks over strict JSON generation: Codex fills a Markdown checklist, then the
+check script parses that checklist into harness JSON.
+
+Core principle:
+
+```text
+Codex should not produce the final harness JSON.
+Codex should fill a review artifact.
+The check script should parse that artifact into harness JSON.
+```
+
+This lowers workflow fragility. Markdown checklists are easier for models to
+complete consistently and easier for humans to audit. Harness JSON remains the
+machine-facing contract, but it is produced by code, not by the model.
+
+```python
+from agent_harness_cli.llm.codex_judge import run_codex_checklist_judge
+
+filled = run_codex_checklist_judge(
+    prompt=prompt,
+    checklist_template=template,
+    working_directory=root,
+    model=check.get("config", {}).get("model"),
+    reasoning_effort=check.get("config", {}).get("reasoning_effort", "low"),
+)
+```
+
+Rules:
+
+- Build a small evidence bundle; do not ask Codex to browse the workspace.
+- Give a checklist with concrete yes/no items.
+- Keep Codex read-only. The helper calls `codex exec` with a read-only sandbox and ephemeral session.
+- Parse `- [x]` and `- [ ]` deterministically; do not trust prose as the source of truth.
+- Return parsed checklist results inside the normal check-result contract.
+- Default LLM content checks to `warning` unless the rubric is stable enough to block.
+
+Checklist contract:
+
+```md
+# Checklist Name
+
+- [ ] item_id: thesis_relevant
+  Criterion: The central claim directly addresses the requested topic.
+  Evidence:
+  Reason:
+  Suggestion:
+
+- [ ] item_id: counterargument
+  Criterion: The essay responds to a plausible opposing concern.
+  Evidence:
+  Reason:
+  Suggestion:
+```
+
+Parser rules:
+
+- Treat checked items as pass and unchecked items as fail.
+- Prefer stable `item_id` values over item text when creating reasons.
+- If the filled checklist has no parseable checkbox items, fail closed.
+- Preserve the filled checklist in `metadata` when useful for audit.
+- Do not make free-form prose the source of truth for pass/fail.
+
+## Bad Checks
+
+Avoid:
+
+- Broad checks such as "judge overall quality".
+- Checks that depend on live network state without explicit config.
+- Checks that mutate user artifacts.
+- Checks that fail without evidence.
+- LLM judges without a rubric.
+- Scripts that print prose before or after the JSON result.
+
+## Template
+
+Copy `assets/check_template.py` when creating a new Python check.
