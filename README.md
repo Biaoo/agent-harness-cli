@@ -1,43 +1,214 @@
 # Agent Harness CLI
 
-`agent-harness-cli` is a thin, dependency-free CLI for agentic task checks. It does
-not own domain logic. It runs user-defined check scripts, stores report JSON,
-and lets agents page through reports without dumping everything at once.
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-Install:
+A practical reference framework for building acceptance loops around AI agent work.
+
+`agent-harness-cli` helps you turn "the agent seems done" into executable,
+inspectable feedback. The CLI runs project-owned check scripts, writes
+machine-readable reports, and gives Codex a paginated report surface it can use
+for the next pass.
+
+## What Is Agent Harness Engineering?
+
+Agent Harness Engineering is the practice of engineering the system around an AI
+agent so the agent's work becomes constrained, observable, verifiable, and
+iteratively improvable through executable feedback loops.
+
+In broader use, that system can include task specs, tools, runtime context,
+memory, safety controls, environments, evaluators, reports, and human handoff.
+This project is a focused reference framework for one practical surface of that
+idea: artifact acceptance loops for Codex workspaces.
+
+Instead of relying on an agent's final message, you define:
+
+- the artifact the agent must produce
+- the checks that decide whether the artifact is acceptable
+- the report format the agent can inspect
+- the hook behavior that turns failures into the next agent prompt
+
+`agent-harness-cli` provides the smallest reusable skeleton for that loop. Your
+workspace owns the domain rules: checks, rubrics, fixtures, and optional LLM
+judge calls.
+
+## Why It Matters
+
+Agentic work often fails at the last mile: the artifact exists, but nobody has
+turned the acceptance criteria into a feedback loop the agent can actually use.
+
+`agent-harness-cli` gives you a reference implementation of a project-local
+acceptance loop:
+
+- deterministic checks for objective requirements
+- checklist or LLM-assisted checks for semantic requirements
+- warning checks for guidance and error checks for blocking failures
+- JSON reports for reproducibility and audit
+- paginated report viewing for large outputs
+- Codex Stop hooks that turn failed checks into continuation prompts
+
+The key idea is simple: **a failed check should become useful context for the
+next agent pass.**
+
+## Good Fit
+
+Use this when an agent produces an artifact that can be checked, and you want a
+pattern your project can copy and adapt:
+
+- project documents, proposals, specifications, and research notes
+- code changes that need repository-specific acceptance checks
+- generated data reports or analysis outputs
+- writing tasks with strict length, structure, or quality requirements
+- long-running agentic workflows where the agent should iterate after failures
+
+The main design boundary is that domain logic stays in the workspace's own check
+scripts, while the CLI provides a consistent way to run those checks and inspect
+their results.
+
+## What This Is Not
+
+`agent-harness-cli` is not trying to be a complete agent platform. It is not:
+
+- an eval platform
+- an agent runtime
+- a workflow engine
+- a large built-in check library
+- a replacement for project tests, linting, review, or domain judgment
+
+The value is the reference pattern: define the artifact, run project-owned
+checks, write a report, and feed failures back into the next agent pass.
+
+## Related Projects
+
+- Runnable example: [Biaoo/agent-harness-cli-example](https://github.com/Biaoo/agent-harness-cli-example)
+- This repository contains the CLI and the `harness-check-designer` Codex skill.
+
+## Install
+
+Install the CLI with `uv`:
 
 ```bash
 uv tool install agent-harness-cli
 ```
 
-Install the Codex skill that teaches agents how to design harness checks and
-Stop hooks:
+Or run the published package without a global install:
+
+```bash
+uvx --from agent-harness-cli agent-harness --help
+```
+
+## Install the Codex Skill
+
+The repository includes a Codex skill that teaches agents how to design harness
+checks and Stop hooks:
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex
 ```
 
-For a global Codex install instead of a project-local install, add `-g`:
+For a global Codex skill install, add `-g`:
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex -g
 ```
 
-The core shape is:
+After installing the skill, ask Codex to use `$harness-check-designer` when
+designing checks or project hooks for your workspace.
 
-```text
-Task spec + external check commands + report store + paginated viewer
+## Build an Acceptance Loop
+
+In normal use, configure the project so Codex runs the harness automatically
+when a turn stops. Manual CLI commands are mainly useful while developing or
+debugging checks.
+
+1. **Write the artifact contract.** Define what Codex should produce and where it
+   should save it.
+2. **Encode acceptance checks.** Write focused scripts under your project, such
+   as `checks/check_required_sections.py`.
+3. **Describe the task.** Put the artifact and checks in `task.json`.
+4. **Wire the Stop hook.** Run `agent-harness run-checks` when Codex attempts to
+   finish.
+5. **Continue on failure.** Convert blocking failures into a Codex continuation
+   decision so the agent keeps working.
+6. **Inspect the report.** Use `agent-harness view` while debugging or when an
+   agent needs paginated report context.
+
+Minimal `task.json`:
+
+```json
+{
+  "id": "proposal_review",
+  "artifacts": [
+    {
+      "name": "proposal",
+      "path": "proposal.md",
+      "type": "markdown",
+      "required": true
+    }
+  ],
+  "checks": [
+    {
+      "name": "required_sections",
+      "command": ["{python}", "checks/check_required_sections.py"],
+      "severity": "error",
+      "config": {
+        "artifact": "proposal"
+      }
+    }
+  ]
+}
 ```
 
-## Quick Start
+Minimal `.codex/hooks.json`:
 
-Run checks for a task file from any workspace:
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$(git rev-parse --show-toplevel)/.codex/hooks/run-agent-harness-check.sh\"",
+            "async": false,
+            "timeout": 360,
+            "statusMessage": "Running agent harness"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+See the runnable example for a complete Stop hook script:
+[Biaoo/agent-harness-cli-example](https://github.com/Biaoo/agent-harness-cli-example).
+
+## Codex Stop Hooks
+
+`agent-harness run-checks` exits with `1` when blocking checks fail. That is
+correct CLI behavior. In a Codex Stop hook, translate that result into a Codex
+continuation decision:
+
+```json
+{
+  "decision": "block",
+  "reason": "Agent harness found blocking failures. Update the artifact and rerun the harness."
+}
+```
+
+For Stop hooks, this does not reject the turn. It tells Codex to continue with
+the reason as the next prompt. Use the generated report to give Codex a short,
+actionable continuation reason.
+
+## Manual Debugging
+
+Use the CLI directly when developing or debugging checks:
 
 ```bash
 agent-harness run-checks --task task.json --report-id sample-report
 ```
 
-The command prints a compact summary:
+The command writes a report and prints a compact summary:
 
 ```text
 PASSED 2/2 checks
@@ -49,38 +220,26 @@ Next:
   agent-harness view sample-report --failed-only
 ```
 
-View a report one page at a time:
+View the report one page at a time:
 
 ```bash
 agent-harness view sample-report --page 1 --page-size 5
 agent-harness view sample-report --failed-only
 ```
 
-Run tests:
+## How It Works
 
-```bash
-uv run python -m unittest discover -s tests -p "test_*.py"
-```
-
-Build package distributions:
-
-```bash
-uv build
-```
-
-## Project Layout
+The core shape is:
 
 ```text
-src/agent_harness_cli/
-  runners/       Thin CLI implementations for run-checks and view.
-skills/          Skill that teaches agents how to design check scripts.
-schemas/         JSON schemas for tasks, check results, and reports.
-tests/           Self-contained CLI tests.
+task.json + external check commands + report store + paginated viewer
 ```
 
-## Check Command Contract
+Each check is an ordinary command. The harness writes an input JSON file and
+appends `--input <path>` unless the command already contains `{input}`. It also
+replaces `{python}` with the current Python interpreter.
 
-Each task check declares a command:
+Task check example:
 
 ```json
 {
@@ -93,11 +252,7 @@ Each task check declares a command:
 }
 ```
 
-The harness writes an input JSON file and appends `--input <path>` unless the
-command already contains `{input}`. It also replaces `{python}` with the current
-Python interpreter.
-
-The input contains:
+Input passed to each check:
 
 ```json
 {
@@ -108,9 +263,7 @@ The input contains:
 }
 ```
 
-## Check Result Contract
-
-Every check returns this shape:
+Check result shape:
 
 ```json
 {
@@ -125,29 +278,13 @@ Every check returns this shape:
 
 Failed checks should include specific reasons with evidence and a suggested fix.
 
-## Design Notes
+## Design Principles
 
-- The PyPI distribution is `agent-harness-cli`; the installed command is `agent-harness`.
+- Keep the CLI thin and the workspace in control.
 - Deterministic checks should be preferred over LLM judges.
-- LLM judge checks should own their model-call logic inside the user's check script or workspace.
-- Warnings guide an agent without blocking the run.
-- Error-level failures block the run.
+- LLM judge checks should own model-call logic inside the user's check script or
+  workspace.
+- Warning failures guide an agent without blocking the run.
+- Error failures block handoff.
 - Domain logic belongs in user-owned check scripts.
-- Use `skills/harness-check-designer/SKILL.md` when asking an agent to design a new check.
-- A Codex Stop hook should translate blocking harness failures into a Codex continuation decision.
 - JSON is used for task and report files to avoid parser dependencies.
-
-## Publishing
-
-The GitHub workflow at `.github/workflows/publish.yml` publishes on tags that
-match `v*.*.*`. The tag version must match `[project].version` without the
-leading `v`.
-
-```bash
-git tag v0.1.1
-git push origin v0.1.1
-```
-
-Publishing uses PyPI Trusted Publishing with the `pypi` GitHub environment.
-Configure the PyPI project `agent-harness-cli` to trust this repository and the
-workflow file `.github/workflows/publish.yml` before pushing a release tag.

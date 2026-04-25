@@ -8,6 +8,18 @@ description: Use when designing or implementing Agent Harness CLI check scripts,
 Use this skill to design checks for `agent-harness`. The harness only runs check
 commands and stores reports; each check script owns its domain logic.
 
+## Positioning
+
+Agent Harness Engineering means engineering the system around an AI agent so the
+agent's work is constrained, observable, verifiable, and improved through
+executable feedback loops.
+
+`agent-harness` is a focused reference framework, not an eval platform, agent
+runtime, workflow engine, or built-in rule library. This skill focuses on
+artifact acceptance loops: define the artifact contract, encode project-owned
+checks, write agent-readable reports, and wire failed checks back into the next
+agent pass.
+
 ## Workflow
 
 1. Convert the user's quality requirement into one narrow check.
