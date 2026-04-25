@@ -1,6 +1,6 @@
 [project]
 name = "agent-harness-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "A lightweight scaffold for evaluating agentic tasks with structured checks."
 readme = "README.md"
 license = "MIT"

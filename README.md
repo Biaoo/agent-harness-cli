@@ -116,7 +116,7 @@ Failed checks should include specific reasons with evidence and a suggested fix.
 
 - The PyPI distribution is `agent-harness-cli`; the installed command is `agent-harness`.
 - Deterministic checks should be preferred over LLM judges.
-- LLM judge checks can import `agent_harness_cli.llm.codex_judge`, which calls local `codex exec` and supports checklist-based judging.
+- LLM judge checks should own their model-call logic inside the user's check script or workspace.
 - Warnings guide an agent without blocking the run.
 - Error-level failures block the run.
 - Domain logic belongs in user-owned check scripts.
@@ -130,8 +130,8 @@ match `v*.*.*`. The tag version must match `[project].version` without the
 leading `v`.
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 Publishing uses PyPI Trusted Publishing with the `pypi` GitHub environment.

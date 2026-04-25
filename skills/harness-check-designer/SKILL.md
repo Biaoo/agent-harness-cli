@@ -105,23 +105,12 @@ This lowers workflow fragility. Markdown checklists are easier for models to
 complete consistently and easier for humans to audit. Harness JSON remains the
 machine-facing contract, but it is produced by code, not by the model.
 
-```python
-from agent_harness_cli.llm.codex_judge import run_codex_checklist_judge
-
-filled = run_codex_checklist_judge(
-    prompt=prompt,
-    checklist_template=template,
-    working_directory=root,
-    model=check.get("config", {}).get("model"),
-    reasoning_effort=check.get("config", {}).get("reasoning_effort", "low"),
-)
-```
-
 Rules:
 
 - Build a small evidence bundle; do not ask Codex to browse the workspace.
 - Give a checklist with concrete yes/no items.
-- Keep Codex read-only. The helper calls `codex exec` with a read-only sandbox and ephemeral session.
+- Put LLM provider calls in the user's check script or workspace, not in the harness CLI.
+- Keep Codex read-only when using local `codex exec`, with an ephemeral session when possible.
 - Parse `- [x]` and `- [ ]` deterministically; do not trust prose as the source of truth.
 - Return parsed checklist results inside the normal check-result contract.
 - Default LLM content checks to `warning` unless the rubric is stable enough to block.
