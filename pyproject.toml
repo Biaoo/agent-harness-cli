@@ -3,14 +3,21 @@ name = "agent-harness-cli"
 version = "0.1.0"
 description = "A lightweight scaffold for evaluating agentic tasks with structured checks."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
 dependencies = []
 
 [project.scripts]
 agent-harness = "agent_harness_cli.cli:main"
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
