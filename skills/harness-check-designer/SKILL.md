@@ -1,6 +1,6 @@
 ---
 name: harness-check-designer
-description: Use when designing or implementing Agent Harness CLI check scripts, turning ambiguous agentic task quality criteria into deterministic, single-purpose checks that output the Agent Harness CLI check-result JSON contract.
+description: Use when designing or implementing Agent Harness CLI checks, Stop hooks, workflow-controller specs, or project AGENTS.md instructions that turn ambiguous agentic task criteria into deterministic checks, workflow graphs, state transitions, and Codex continuation loops.
 ---
 
 # Harness Check Designer
@@ -15,10 +15,10 @@ agent's work is constrained, observable, verifiable, and improved through
 executable feedback loops.
 
 `agent-harness` is a focused reference framework, not an eval platform, agent
-runtime, workflow engine, or built-in rule library. This skill focuses on
-artifact acceptance loops: define the artifact contract, encode project-owned
-checks, write agent-readable reports, and wire failed checks back into the next
-agent pass.
+runtime, or built-in rule library. This skill is for designing artifact
+acceptance loops and workflow-controller projects: define artifact contracts,
+encode project-owned checks, write agent-readable reports, design workflow
+state routing, and wire blocked checks back into the next agent pass.
 
 ## Workflow
 
@@ -48,6 +48,52 @@ and print exactly one JSON object to stdout. Send logs to stderr.
 outside the user's artifacts or to a temp directory.
 7. Add at least one passing and one failing fixture when the check is non-trivial.
 
+## Workflow Controller Projects
+
+Use workflow-controller mode when a task has multiple validated stages, gates,
+repairs, user approvals, or model-choice routing. Design the project so users
+can start with a normal task statement instead of a long harness prompt:
+
+- `workflows/<name>.json` owns graph structure, node checks, transitions, and
+  model-choice policies.
+- Project `AGENTS.md` tells Codex how to start from a plain user task or idea.
+- Node artifacts and allowed statuses live in project docs near the workflow.
+- Stop hooks call `agent-harness step --task <workflow> --hook-json`.
+- Runtime state and reports are generated files and should be ignored.
+
+For workflow checks, keep scripts deterministic and narrow. A common pattern is:
+
+- a structure check that verifies an artifact exists and has required sections;
+- a status check that parses `Status: <value>` and returns it in
+  `metadata.status`;
+- transition conditions that route on `checks.<name>.metadata.status`.
+
+Model choice should be controlled by workflow transitions, not by open-ended
+natural language. Put clear labels and prompts on candidate transitions so a
+runner can inspect `agent-harness options` and choose with an auditable reason.
+
+## Project AGENTS.md For Workflow Examples
+
+When creating an example workflow project, add a concise `AGENTS.md` so a user
+can start with a normal task statement:
+
+```text
+Research this idea: <idea>
+```
+
+The `AGENTS.md` should define:
+
+- workflow spec path;
+- state path and report directory;
+- artifact contract location;
+- how to determine the active node;
+- how to create/update the active artifact;
+- the required routing marker, for example `Status: <allowed_status>`;
+- how `choosing`, `waiting`, and blocked hook feedback should be handled;
+- any domain-specific hard rule, such as "do not downgrade the research target."
+
+Keep this file project-specific. Keep the skill generic.
+
 ## Input Contract
 
 The harness passes a JSON object with:
@@ -62,6 +108,24 @@ The harness passes a JSON object with:
 ```
 
 Resolve relative artifact, trace, and fixture paths against `root`.
+
+Workflow-controller checks receive the same fields plus workflow context:
+
+```json
+{
+  "root": "project root provided by harness",
+  "task_path": "workflows/example.json",
+  "task": {},
+  "check": {},
+  "workflow": {},
+  "state": {},
+  "node": {},
+  "artifacts": {}
+}
+```
+
+Do not require all workflow fields for simple checks. Use them only when the
+check genuinely depends on workflow state or the active node.
 
 ## Output Contract
 
@@ -99,7 +163,7 @@ Required fields: `check`, `passed`, `severity`, `summary`, `reasons`.
 - Do not hide failures in logs; make them structured reasons.
 - Do not inspect unrelated files unless the check spec says so.
 
-## Codex Stop Hooks
+## Codex Stop Hooks For `run-checks`
 
 When wiring `agent-harness run-checks` into a Codex `Stop` hook, translate the
 harness result into Codex hook semantics:
@@ -157,6 +221,26 @@ print(json.dumps({
 }, ensure_ascii=False))
 PY
 ```
+
+## Codex Stop Hooks For `step`
+
+When designing workflow-controller projects, keep hook logic thin. The CLI should
+own state updates, transition evaluation, report writing, and hook JSON:
+
+```bash
+agent-harness step \
+  --task workflows/example.json \
+  --report-id latest \
+  --hook-json
+```
+
+If the project needs to use an unreleased sibling CLI checkout, set
+`PYTHONPATH=../agent-harness-cli/src` in the hook before invoking
+`python3 -m agent_harness_cli.cli`.
+
+The hook should pass through valid hook JSON from `step`. If `step` fails before
+producing JSON, emit a `decision: "block"` payload with stdout/stderr tails so
+Codex can diagnose the project setup.
 
 ## LLM Judge Checks
 

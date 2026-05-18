@@ -4,7 +4,7 @@
 
 一个用于围绕 AI Agent 产出构建验收循环的实用参考框架。
 
-`agent-harness-cli` 帮你把“Agent 看起来完成了”变成可执行、可检查的反馈。CLI 运行项目自有的 check 脚本，写入机器可读报告，并给 Codex 一个可分页查看的报告界面，用于下一轮修改。
+`agent-harness-cli` 帮你把“Agent 看起来完成了”变成可执行、可检查的反馈。CLI 运行项目自有的 check 脚本，写入机器可读报告，给 Codex 一个可分页查看的报告界面，也可以通过显式 state 控制长流程任务。
 
 ## 什么是 Agent Harness Engineering
 
@@ -54,7 +54,7 @@ Agentic 工作经常卡在最后一公里：artifact 已经生成，但验收标
 
 - eval 平台
 - agent runtime
-- workflow engine
+- 通用 workflow engine
 - 内置大量规则的检查库
 - 项目测试、lint、review 或领域判断的替代品
 
@@ -63,7 +63,10 @@ Agentic 工作经常卡在最后一公里：artifact 已经生成，但验收标
 ## 相关项目
 
 - 可运行示例：[Biaoo/agent-harness-cli-example](https://github.com/Biaoo/agent-harness-cli-example)
-- 本仓库包含 CLI 和 Codex skill `harness-check-designer`。
+- 本仓库包含 CLI 和两个 Codex skill：
+  `harness-check-designer` 用于设计 harness，
+  `harness-workflow-runner` 用于运行已有 workflow。
+- 完整设计：[Workflow Controller 完整设计](docs/workflow-controller-design.zh-CN.md)
 
 ## 安装
 
@@ -79,22 +82,29 @@ uv tool install agent-harness-cli
 uvx --from agent-harness-cli agent-harness --help
 ```
 
-## 安装 Codex Skill
+## 安装 Codex Skills
 
-本仓库包含一个 Codex skill，用来指导 Agent 设计 harness check 和 Stop hook：
+设计 checks、workflow spec、hook 或项目 `AGENTS.md` 时，安装 designer skill：
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex
+```
+
+运行已有 workflow 项目时，安装 runner skill：
+
+```bash
+npx skills add Biaoo/agent-harness-cli --skill harness-workflow-runner -a codex
 ```
 
 如果要安装到 Codex 全局 skill 目录，添加 `-g`：
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex -g
+npx skills add Biaoo/agent-harness-cli --skill harness-workflow-runner -a codex -g
 ```
 
-安装后，在需要为项目设计检查任务或 hook 时，可以要求 Codex 使用
-`$harness-check-designer`。
+设计 harness 时使用 `$harness-check-designer`。运行已有 workflow 时使用
+`$harness-workflow-runner`。
 
 ## 构建一个验收循环
 
@@ -197,6 +207,51 @@ Next:
 agent-harness view sample-report --page 1 --page-size 5
 agent-harness view sample-report --failed-only
 ```
+
+## 长流程 Workflow Controller
+
+除了单次 `run-checks`，CLI 也支持用 workflow graph 管理一项长流程任务的状态。它仍然只运行当前项目声明的 checks，但会把任务拆成多个可验收节点，并在 Codex Stop hook 中持续返回 `decision: "block"`，直到 workflow 完成。
+
+典型命令：
+
+```bash
+agent-harness validate-workflow --task workflows/research.json
+agent-harness step --task workflows/research.json --hook-json
+agent-harness status --state .agent-harness/state.json
+agent-harness history --state .agent-harness/state.json
+agent-harness options --state .agent-harness/state.json
+agent-harness choose start_data_processing --state .agent-harness/state.json --reason "sources are sufficient"
+agent-harness approve scope_approval --state .agent-harness/state.json --reason "scope accepted"
+agent-harness reject scope_approval --state .agent-harness/state.json --reason "scope is too broad"
+agent-harness reset-node literature_collection --state .agent-harness/state.json --reason "need another pass"
+agent-harness cancel --state .agent-harness/state.json --reason "task changed"
+```
+
+`step` 会验收当前 active 节点，写入 state/report，并根据 transition 更新下一步：
+
+- 节点未通过：保持当前节点 active，hook block，要求修复。
+- 节点通过且只有一个可行 transition：自动推进 state，hook block，提示主会话进入下一节点。
+- 节点通过且存在多个可选 transition：进入 `choosing`，hook block，提示运行 `agent-harness options` 和 `agent-harness choose`。
+- 人工确认节点：进入 `waiting`，等待 `approve` 或 `reject` 后再由下一次 `step` 应用转移。
+- workflow 完成：`--hook-json` 输出 `systemMessage`，不再 block。
+
+workflow 节点中的 check 会收到扩展输入：
+
+```json
+{
+  "root": "project root provided by harness",
+  "task_path": "workflows/research.json",
+  "task": {},
+  "check": {},
+  "workflow": {},
+  "state": {},
+  "node": {},
+  "artifacts": {}
+}
+```
+
+完整 workflow controller 设计和研究任务示例见：
+[Workflow Controller 完整设计](docs/workflow-controller-design.zh-CN.md)。
 
 ## 工作方式
 

@@ -31,6 +31,7 @@ def run_check_command(
     check_config: dict[str, Any],
     input_dir: Path,
     timeout_seconds: float,
+    context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     command = check_config.get("command")
     name = str(check_config.get("name", "unnamed_check"))
@@ -52,6 +53,8 @@ def run_check_command(
         "task": task,
         "check": check_config,
     }
+    if context:
+        input_payload.update(context)
     input_path.write_text(json.dumps(input_payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     resolved_command = command_for_check(command, input_path)

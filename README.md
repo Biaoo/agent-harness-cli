@@ -6,8 +6,8 @@ A practical reference framework for building acceptance loops around AI agent wo
 
 `agent-harness-cli` helps you turn "the agent seems done" into executable,
 inspectable feedback. The CLI runs project-owned check scripts, writes
-machine-readable reports, and gives Codex a paginated report surface it can use
-for the next pass.
+machine-readable reports, gives Codex a paginated report surface it can use for
+the next pass, and can control long-running workflows through explicit state.
 
 ## What Is Agent Harness Engineering?
 
@@ -45,6 +45,7 @@ acceptance loop:
 - JSON reports for reproducibility and audit
 - paginated report viewing for large outputs
 - Codex Stop hooks that turn failed checks into continuation prompts
+- workflow state control for multi-stage agentic tasks
 
 The key idea is simple: **a failed check should become useful context for the
 next agent pass.**
@@ -70,7 +71,7 @@ their results.
 
 - an eval platform
 - an agent runtime
-- a workflow engine
+- a general workflow engine
 - a large built-in check library
 - a replacement for project tests, linting, review, or domain judgment
 
@@ -80,7 +81,9 @@ checks, write a report, and feed failures back into the next agent pass.
 ## Related Projects
 
 - Runnable example: [Biaoo/agent-harness-cli-example](https://github.com/Biaoo/agent-harness-cli-example)
-- This repository contains the CLI and the `harness-check-designer` Codex skill.
+- This repository contains the CLI and two Codex skills:
+  `harness-check-designer` for designing harnesses and
+  `harness-workflow-runner` for operating existing workflow projects.
 
 ## Install
 
@@ -96,23 +99,31 @@ Or run the published package without a global install:
 uvx --from agent-harness-cli agent-harness --help
 ```
 
-## Install the Codex Skill
+## Install Codex Skills
 
-The repository includes a Codex skill that teaches agents how to design harness
-checks and Stop hooks:
+Install the designer skill when you want Codex to create or modify checks,
+workflow specs, hooks, or project `AGENTS.md` files:
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex
+```
+
+Install the runner skill when you want Codex to operate an existing workflow
+project from a short user task or idea:
+
+```bash
+npx skills add Biaoo/agent-harness-cli --skill harness-workflow-runner -a codex
 ```
 
 For a global Codex skill install, add `-g`:
 
 ```bash
 npx skills add Biaoo/agent-harness-cli --skill harness-check-designer -a codex -g
+npx skills add Biaoo/agent-harness-cli --skill harness-workflow-runner -a codex -g
 ```
 
-After installing the skill, ask Codex to use `$harness-check-designer` when
-designing checks or project hooks for your workspace.
+Use `$harness-check-designer` when designing the harness. Use
+`$harness-workflow-runner` when running an existing workflow.
 
 ## Build an Acceptance Loop
 
@@ -226,6 +237,30 @@ View the report one page at a time:
 agent-harness view sample-report --page 1 --page-size 5
 agent-harness view sample-report --failed-only
 ```
+
+## Workflow Controller
+
+For long-running tasks, define a workflow graph instead of a single final
+`task.json`. The workflow controller validates the current active node, updates
+state, writes reports, and returns hook JSON that keeps Codex working until the
+workflow completes.
+
+Common commands:
+
+```bash
+agent-harness validate-workflow --task workflows/research.json
+agent-harness step --task workflows/research.json --hook-json
+agent-harness status --state .agent-harness/state.json
+agent-harness history --state .agent-harness/state.json
+agent-harness options --state .agent-harness/state.json
+agent-harness choose <transition-id> --state .agent-harness/state.json --reason "why this route is correct"
+agent-harness approve <node-id> --state .agent-harness/state.json --reason "user approved"
+agent-harness reject <node-id> --state .agent-harness/state.json --reason "user rejected"
+```
+
+Workflow node checks receive the normal check input plus `workflow`, `state`,
+`node`, and `artifacts` context. See the runnable example and the full design
+document: [Workflow Controller Design](docs/workflow-controller-design.zh-CN.md).
 
 ## How It Works
 
