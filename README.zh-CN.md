@@ -66,6 +66,8 @@ Agentic 工作经常卡在最后一公里：artifact 已经生成，但验收标
 - 本仓库包含 CLI 和两个 Codex skill：
   `harness-check-designer` 用于设计 harness，
   `harness-workflow-runner` 用于运行已有 workflow。
+  这两个 skill 都是领域无关的；具体项目负责提供自己的 workflow 说明、
+  checks，以及可选的项目级 skill。
 - 完整设计：[Workflow Controller 完整设计](docs/workflow-controller-design.zh-CN.md)
 
 ## 安装
@@ -215,15 +217,15 @@ agent-harness view sample-report --failed-only
 典型命令：
 
 ```bash
-agent-harness validate-workflow --task workflows/research.json
-agent-harness step --task workflows/research.json --hook-json
+agent-harness validate-workflow --task workflows/<workflow>.json
+agent-harness step --task workflows/<workflow>.json --hook-json
 agent-harness status --state .agent-harness/state.json
 agent-harness history --state .agent-harness/state.json
 agent-harness options --state .agent-harness/state.json
-agent-harness choose start_data_processing --state .agent-harness/state.json --reason "sources are sufficient"
-agent-harness approve scope_approval --state .agent-harness/state.json --reason "scope accepted"
-agent-harness reject scope_approval --state .agent-harness/state.json --reason "scope is too broad"
-agent-harness reset-node literature_collection --state .agent-harness/state.json --reason "need another pass"
+agent-harness choose <transition-id> --state .agent-harness/state.json --reason "why this route is correct"
+agent-harness approve <node-id> --state .agent-harness/state.json --reason "user approved"
+agent-harness reject <node-id> --state .agent-harness/state.json --reason "user rejected"
+agent-harness reset-node <node-id> --state .agent-harness/state.json --reason "need another pass"
 agent-harness cancel --state .agent-harness/state.json --reason "task changed"
 ```
 
@@ -240,7 +242,7 @@ workflow 节点中的 check 会收到扩展输入：
 ```json
 {
   "root": "project root provided by harness",
-  "task_path": "workflows/research.json",
+  "task_path": "workflows/<workflow>.json",
   "task": {},
   "check": {},
   "workflow": {},

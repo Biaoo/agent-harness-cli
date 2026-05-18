@@ -78,7 +78,7 @@ When creating an example workflow project, add a concise `AGENTS.md` so a user
 can start with a normal task statement:
 
 ```text
-Research this idea: <idea>
+Run this workflow for: <task or idea>
 ```
 
 The `AGENTS.md` should define:
@@ -90,7 +90,8 @@ The `AGENTS.md` should define:
 - how to create/update the active artifact;
 - the required routing marker, for example `Status: <allowed_status>`;
 - how `choosing`, `waiting`, and blocked hook feedback should be handled;
-- any domain-specific hard rule, such as "do not downgrade the research target."
+- any domain-specific hard rule, such as "do not advance to implementation until
+  the design gate passes."
 
 Keep this file project-specific. Keep the skill generic.
 

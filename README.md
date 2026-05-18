@@ -84,6 +84,8 @@ checks, write a report, and feed failures back into the next agent pass.
 - This repository contains the CLI and two Codex skills:
   `harness-check-designer` for designing harnesses and
   `harness-workflow-runner` for operating existing workflow projects.
+  Both skills are domain-neutral; project repositories provide their own
+  workflow-specific instructions, checks, and optional project-level skills.
 
 ## Install
 
@@ -248,8 +250,8 @@ workflow completes.
 Common commands:
 
 ```bash
-agent-harness validate-workflow --task workflows/research.json
-agent-harness step --task workflows/research.json --hook-json
+agent-harness validate-workflow --task workflows/<workflow>.json
+agent-harness step --task workflows/<workflow>.json --hook-json
 agent-harness status --state .agent-harness/state.json
 agent-harness history --state .agent-harness/state.json
 agent-harness options --state .agent-harness/state.json
